@@ -48,18 +48,14 @@ static int M_time;            // track remaining time can be used for M tasks (t
 
 /* queues */
 /* 
- * input_queue: it stores tasks from the txt file given in order of arrive_time. 
- *              later each task in it moves to a appropriate queue when time is 
- *              arrive_time. And it's FCFS queue by its nature.
  * H_queue    : it's priority queue. 
  * M_queue    : it's SJF queue.
  * L_queue    : it's FCFS queue.
  *
  */
-static Queue input_queue;       
-static Queue H_queue;
-static Queue M_queue;
-static Queue L_queue;
+static Queue *H_queue;
+static Queue *M_queue;
+static Queue *L_queue;
 
 
 
@@ -397,11 +393,11 @@ invalid_line:
 static Queue *get_queue(Type type) {
   switch(type) {
     case H:
-      return &H_queue;
+      return H_queue;
     case M:
-      return &M_queue;
+      return M_queue;
     case L:
-      return &L_queue;
+      return L_queue;
     default:
       MSG("get_enqueue error no such queue type\n");
       return NULL;
@@ -432,7 +428,6 @@ static int enqueue_task(Task *new_task) {
   if (is_empty(q)) {
     q->head = q->tail = new_task;
   } else if (task_type == H) {
-      MSG("new priority %d\n", new_task->priority);
 
     if (new_task->priority < q->head->priority) {
       new_task->next = q->head;
@@ -478,16 +473,23 @@ static int enqueue_task(Task *new_task) {
 }
 
 static Task *dequeue_task(Queue *q) {
-  if (q->size == 0) {
+
+  if (is_empty(q)) {
     MSG ("no element to dequeue\n");
     return NULL;
   }
 
   Task *t = q->head;
 
-  q->head = q->head->next;
-  q->size--;
-  t->next = NULL;
+  if (q->head == q->tail) {
+    q->head = NULL;
+    q->tail = NULL;
+  } else {
+
+    q->head = q->head->next;
+    q->size--;
+    t->next = NULL;
+  }
 
   return t;
 
@@ -502,22 +504,22 @@ static void init_queue(Queue *q) {
   q->tail = NULL;
 }
 
-
+/* long-term-scheduling function */
 static void long_term_schedule() {
 
   Task *t;
-  Task *tmp;
+  Task *target;
 
-  if (!tasks) return;
+  if (!tasks) return;               // no task to schedule
 
   t = tasks;
   while (t) {
-    if (t->arrive_time == time) {
-      tmp = t;
+    if (t->arrive_time == time) {   // schedule the task which 
+      target = t;                   // arrive-time is equal to current time
       tasks = t->next;
       t = t->next;
-      tmp->next = NULL;
-      enqueue_task(tmp);
+      target->next = NULL;
+      enqueue_task(target);
     } else {
       t = t->next;
     }
@@ -538,13 +540,14 @@ int main(int argc, char **argv) {
     MSG ("failed to load input file '%s': %s\n", argv[1], STRERROR);
     return -1; 
   }
-  MSG("%d\n", tasks->priority);
-  print_tasks();
 
   /* initialize all queues */
-  init_queue(&H_queue);
-  init_queue(&M_queue);
-  init_queue(&L_queue);
+  H_queue = (Queue *) malloc(sizeof(Queue));
+  M_queue = (Queue *) malloc(sizeof(Queue));
+  L_queue = (Queue *) malloc(sizeof(Queue));
+  init_queue(H_queue);
+  init_queue(M_queue);
+  init_queue(L_queue);
   
 
   // DEBUG
@@ -553,11 +556,11 @@ int main(int argc, char **argv) {
     printf("\n==========time %d===========\n", time);
     long_term_schedule();
 
-    print_queue(&H_queue);
-    print_queue(&M_queue);
-    print_queue(&L_queue);
+    print_queue(H_queue);
+    print_queue(M_queue);
+    print_queue(L_queue);
 
-    time++;
+    time++;           // increase time
   }
 
   return 0;
