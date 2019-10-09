@@ -12,11 +12,41 @@
 #define TIME_LEN 2
 #define PRIORITY_LEN 2
 
+#define DEBUG 1     // for debugging
+
+/* declarations */
 static int check_valid_id(const char*);
 static int lookup_task(const char*);
 static int check_valid_arrive_time(const char*);
 static int check_valid_service_time(const char*);
 static int check_valid_priority(const char*);
+
+
+typedef enum {
+
+  H, M, L
+
+} Type;
+
+typedef struct _Task Task;
+struct _Task {
+
+  Type type;
+  char id[ID_LEN+1];
+  short arrive_time;
+  short service_time;
+  short priority;
+  int complete_time;
+};
+
+typedef struct _Queue Queue;
+struct _Queue {
+
+  Task *head;
+  Task *tail;
+  int size;
+};
+
 
 static int check_valid_id(const char *str) {
 
@@ -129,10 +159,12 @@ static int read_config(const char* filename) {
     return -1;
 
   while (fgets(line, sizeof(line), fp)) {
+    Task task;
     char* p;
     char* s;
     size_t len;
 
+    memset(&task, 0x00, sizeof(task));
     line_nr++;
 
     len = strlen (line);
@@ -161,6 +193,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: make task structure
+    strcpy(task.id, s);
     //MSG ("id is %s", s);
     //strcpy (task.id, s);
 
@@ -173,14 +206,17 @@ static int read_config(const char* filename) {
     strstrip (s);
     //TODO: assign process-type here
     if (!strcasecmp (s, "H")) {
+      task.type = H;
       //MSG("process-type is H");
       //task.action = ACTION_ONCE;
     }
     else if (!strcasecmp (s, "M")) {
+      task.type = M;
       //MSG("process-type is M");
       //task.action = ACTION_RESPAWN;
     }
     else if (!strcasecmp (s, "L")) {
+      task.type = L;
       //MSG("process-type is L");
       //something
     }
@@ -203,6 +239,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add arrive-time
+    task.arrive_time = atoi(s);
     //MSG(" arrive-time is %s", s);
 
     /* service-time */
@@ -217,6 +254,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add service-time
+    task.service_time = atoi(s);
     //MSG(" service-time is %s", s);
 
     /* priority */
@@ -232,10 +270,16 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add priority
+    task.priority = atoi(s);
     //MSG(" priority is %s", s);
     //MSG("\n");
 
     //TODO: append whole information here
+    if (DEBUG)
+      MSG ("id:%s type:%d arrive-time:%d service-time:%d priority:%d\n",
+          task.id, task.type, task.arrive_time, task.service_time, task.priority);
+
+
 
     continue;
 
