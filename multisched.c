@@ -101,7 +101,7 @@ static void print_tasks() {
   }
 
   while (t != NULL) {
-    MSG ("%s -> ", t->id);
+    MSG ("%s %d-> ", t->id, t->priority);
     t = t->next;
   }
   MSG("\n");
@@ -233,7 +233,7 @@ static void append_task(Task *task) {
 
   Task *new_task;
 
-  new_task = (Task *) malloc(sizeof(task));
+  new_task = (Task *) calloc(1, sizeof(Task));
 
   if (!new_task) {
     MSG ("failed to allocate a task: %s\n", STRERROR);
@@ -254,6 +254,7 @@ static void append_task(Task *task) {
     t->next = new_task;
 
   }
+  MSG("new task %d\n", new_task->priority);
 
 }
 
@@ -372,6 +373,7 @@ static int read_config(const char* filename) {
     }
 
     task.priority = atoi(s);
+  
 
     //TODO: append whole information here
     if (DEBUG)
@@ -387,7 +389,6 @@ invalid_line:
   }
 
   fclose (fp);
-
 
   return 0;
 
@@ -419,6 +420,7 @@ static int enqueue_task(Task *new_task) {
 
   Type task_type = new_task->type;
   Queue *q = get_queue(task_type);
+  t = q->head;
 
   //Task *new_task; 
 
@@ -430,21 +432,22 @@ static int enqueue_task(Task *new_task) {
   if (is_empty(q)) {
     q->head = q->tail = new_task;
   } else if (task_type == H) {
+      MSG("new priority %d\n", new_task->priority);
 
     if (new_task->priority < q->head->priority) {
       new_task->next = q->head;
       q->head = new_task;
-    } else {
+    } else { 
       while (t->next != NULL 
-             && new_task->priority > t->next->priority) 
+          && new_task->priority >= t->next->priority) 
         t = t->next;
-        if (t->next == NULL) {
-          t->next = new_task;
-          q->tail = new_task;
-        } else {
-          new_task->next = t->next;
-          t->next = new_task;
-        }
+      if (t->next == NULL) {
+        t->next = new_task;
+        q->tail = new_task;
+      } else {
+        new_task->next = t->next;
+        t->next = new_task;
+      }
     }
 
   } else if (task_type == M) {
@@ -454,7 +457,7 @@ static int enqueue_task(Task *new_task) {
       q->head = new_task;
     } else {
       while (t->next != NULL 
-             && new_task->remaining_time > t->next->remaining_time) 
+             && new_task->remaining_time >= t->next->remaining_time) 
         t = t->next;
         if (t->next == NULL) {
           t->next = new_task;
@@ -535,11 +538,14 @@ int main(int argc, char **argv) {
     MSG ("failed to load input file '%s': %s\n", argv[1], STRERROR);
     return -1; 
   }
+  MSG("%d\n", tasks->priority);
+  print_tasks();
 
   /* initialize all queues */
   init_queue(&H_queue);
   init_queue(&M_queue);
   init_queue(&L_queue);
+  
 
   // DEBUG
   while (tasks) {
