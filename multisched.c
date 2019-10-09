@@ -122,7 +122,7 @@ static int read_config(const char* filename) {
 
   FILE *fp;
   char line[COMMAND_LEN * 2];
-  int line_nr;
+  int line_nr = 0;
 
   fp = fopen (filename, "r");
   if (!fp)
@@ -161,7 +161,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: make task structure
-    MSG ("id is %s", s);
+    //MSG ("id is %s", s);
     //strcpy (task.id, s);
 
     /* process-type */
@@ -172,15 +172,18 @@ static int read_config(const char* filename) {
     *p = '\0';
     strstrip (s);
     //TODO: assign process-type here
-    if (!strcasecmp (s, "H"))
-      MSG("process-type is H");
+    if (!strcasecmp (s, "H")) {
+      //MSG("process-type is H");
       //task.action = ACTION_ONCE;
-    else if (!strcasecmp (s, "M"))
-      MSG("process-type is M");
+    }
+    else if (!strcasecmp (s, "M")) {
+      //MSG("process-type is M");
       //task.action = ACTION_RESPAWN;
-    else if (!strcasecmp (s, "L"))
-      MSG("process-type is L");
+    }
+    else if (!strcasecmp (s, "L")) {
+      //MSG("process-type is L");
       //something
+    }
     else
     {
       MSG ("invalid action '%s' in line %d, ignored\n", s, line_nr);
@@ -200,7 +203,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add arrive-time
-    MSG(" arrive-time is %s", s);
+    //MSG(" arrive-time is %s", s);
 
     /* service-time */
     s = p + 1;
@@ -214,7 +217,7 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add service-time
-    MSG(" service-time is %s", s);
+    //MSG(" service-time is %s", s);
 
     /* priority */
     s = p + 1;
@@ -229,8 +232,8 @@ static int read_config(const char* filename) {
       continue;
     }
     //TODO: add priority
-    MSG(" priority is %s", s);
-    MSG("\n");
+    //MSG(" priority is %s", s);
+    //MSG("\n");
 
     //TODO: append whole information here
 
