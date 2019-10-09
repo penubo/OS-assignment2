@@ -252,13 +252,13 @@ int main(int argc, char **argv) {
 
   if (argc <= 1)
   {
-    MSG ("usage: %s config-file\n", argv[0]);
+    MSG ("usage: %s input file must specified\n", argv[0]);
     return -1; 
   }
 
   if (read_config (argv[1]))
   {
-    MSG ("failed to load config file '%s': %s\n", argv[1], STRERROR);
+    MSG ("failed to load input file '%s': %s\n", argv[1], STRERROR);
     return -1; 
   }
 
