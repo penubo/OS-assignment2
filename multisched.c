@@ -21,6 +21,7 @@
 /* declarations */
 typedef struct _Task Task;
 typedef struct _Queue Queue;
+typedef struct _CPU CPU;
 typedef enum _Type Type;
 
 static int check_valid_id(const char *);
@@ -45,6 +46,7 @@ static Task *tasks;           // list of tasks from the txt file.
 static int time;              // track current time.
 static int H_time;            // track remaining time can be used for H tasks (time slicing)
 static int M_time;            // track remaining time can be used for M tasks (time slicing)
+static CPU *cpu;
 
 /* queues */
 /* 
@@ -84,6 +86,13 @@ struct _Queue {
   Task *head;
   Task *tail;
   int size;
+};
+
+struct _CPU {               // cpu structure
+
+  Task *task;               // task currently running
+  int H_time;               // time quantum for H_task
+  int M_time;               // time quantum for M_task
 };
 
 
@@ -548,17 +557,86 @@ int main(int argc, char **argv) {
   init_queue(H_queue);
   init_queue(M_queue);
   init_queue(L_queue);
-  
+
+  /* initialize CPU */
+  cpu = (CPU *) malloc(sizeof(CPU));
 
   // DEBUG
+  // TODO: what is stopping case??
   while (tasks) {
 
     printf("\n==========time %d===========\n", time);
+
+    // long-term scheduling
     long_term_schedule();
+
+
+    // if CPU is empty
+    //   if H_time == 0 && M_time == 0
+    //     if H_queue is not empty
+    //       CPU.H_time = 6;
+    //       add H_queue.head to CPU
+    //     else if M_queue is not empty
+    //       CPU.M_time = 4;
+    //       add M_queue.head to CPU
+    //     else if L_queue is not empty
+    //       add L_queue.head to CPU
+    //   else if it's H_time && H_queue is not empty
+    //     add H_task to CPU
+    //   else if it's H_time && M_queue is not empty (H_queue is empty)
+    //     CPU.H_time = 0;
+    //     CPU.M_time = 4;
+    //     add M_task to CPU and reset M_time = 4
+    //   else if M_time && M_queue is not empty
+    //     add M_task to CPU
+    //   else if it's M_time && H_queue is not empty (M_queue is empty)
+    //     CPU.M_time = 0;
+    //     CPU.H_time = 6;
+    //     add H_task to CPU and reset H_time = 6
+    //   else if H_queue and M_queue is empty
+    //     CPU.H_time = 0;
+    //     CPU.M_time = 0;
+    //     add L_queue.head to CPU
+    // 
+    // else if CPU is not empty
+    //   if H_task is running
+    //     if H_queue.head is more higher than H_task
+    //        add H_queue.head to CPU and preempt H_task
+    //   else if M_task is running
+    //   else if L_task is running
+    //     if H_queue is not empty
+    //        add H_queue.head to CPU and preempt L_task
+    //     else if M_queue is not empty
+    //        add M_queue.head to CPU and preempt L_task
+    //
+
+    // checking things
+    // if task which has higher priority come into H_queue and H_task is running
+    //   assign new H_task to CPU and preempt H_task  
+
+    // if no task is running.
+    //   check H -> M -> L and assign to CPU.
+    // else if H_task was running and it used up H_time
+    //   if M_queue is not empty
+    //     assign M_task to CPU and preempt H_task to H_queue
+    //   else 
+    //     reset H_time and keep run H_task
+    // else if M_task was running and it used up M_time
+    //   if H_queue is not empty
+    //     assign H_task to CPU and preempt M_task to M_queue
+    //   else 
+    //     reset M_time and keep run M_task
+
+
+    // process a task in CPU
+    // if task is completed
+    //   delete task in CPU
 
     print_queue(H_queue);
     print_queue(M_queue);
     print_queue(L_queue);
+
+    // increase time
 
     time++;           // increase time
   }
