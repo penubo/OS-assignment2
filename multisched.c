@@ -39,6 +39,7 @@ static bool is_empty(Queue *);
 static void init_queue(Queue *);
 
 static void long_term_schedule();
+static void process();
 
 
 /* global variables */
@@ -535,6 +536,30 @@ static void long_term_schedule() {
   }
 }
 
+static void process() {
+  if (cpu->task != NULL) {
+
+    cpu->task->remaining_time--;
+    if (cpu->task->remaining_time == 0) {
+      cpu->task->complete_time = time;     // record complete time
+      cpu->task = NULL;
+    }
+    
+    if (cpu->H_time > 0) {
+      cpu->H_time--;
+      if (cpu->H_time == 0 && cpu->task != NULL) {
+        enqueue_task(cpu->task);
+        M_time = M_CPU_TIME_SLICE;
+      }
+    } else if (cpu->M_time > 0) {
+      cpu->M_time--;
+      if (cpu->M_time == 0 && cpu->task != NULL) {
+        enqueue_task(cpu->task);
+        H_time = H_CPU_TIME_SLICE;
+      }
+    }
+  }
+}
 
 int main(int argc, char **argv) {
 
@@ -570,6 +595,20 @@ int main(int argc, char **argv) {
     // long-term scheduling
     long_term_schedule();
 
+
+    if (cpu->task != NULL) {
+      if (cpu->H_time == 0 && cpu->M_time == 0) {
+
+      } else if (cpu->H_time > 0 && !is_empty(H_queue)) {
+
+
+      } else if (cpu->H_time > 0 && !is_empty(M_queue)) {
+
+      } 
+
+    } else {
+
+    }
 
     // if CPU is empty
     //   if H_time == 0 && M_time == 0
@@ -629,6 +668,7 @@ int main(int argc, char **argv) {
 
 
     // process a task in CPU
+    process();
     // if task is completed
     //   delete task in CPU
 
