@@ -111,23 +111,27 @@ struct _CPU {               // cpu structure
 struct _GanttNode {
 
   Node *next;
+  Task *task;
 
   char id[ID_LEN+1];
   bool record[MAX_PROCESS_ID*MAX_SERVICE_TIME+MAX_SERVICE_TIME];
-  Task *task;
+  int turn_around_time;
+  int waiting_time;
 };
 
 struct _GanttList {
 
   Node *head;
+  int size;
   
 };
 
 static GanttList gantt_list;
 
-void addGanttNode(char *id) {
+void addGanttNode(Task *task) {
   Node *new_node = (Node *) malloc(sizeof(Node));
-  strcpy(new_node->id, id);
+  strcpy(new_node->id, task->id);
+  new_node->task = task;
 
   Node *n = gantt_list.head;
 
@@ -137,6 +141,44 @@ void addGanttNode(char *id) {
   }
   while (n->next != NULL) n = n->next;
   n->next = new_node;
+  
+  gantt_list.size++;
+}
+
+void record_to_gantt(char *id) {
+  if (gantt_list.head == NULL) return;
+
+  Node *n = gantt_list.head;
+
+  for (Node *n = gantt_list.head; n != NULL; n = n->next) {
+    if (!strcmp(n->id, id)) {
+      n->record[time] = true;
+      break;
+    }
+  }
+
+}
+
+void print_gantt() {
+
+  if (gantt_list.head == NULL) return;
+
+  Node *n = gantt_list.head;
+  
+  while (n != NULL) {
+    printf("%s ", n->id);
+    for (int i = 0; i < 60; i++) {
+      if (n->record[i] == true) {
+        printf("*");
+      } else {
+        printf(" ");
+      }
+    }
+    printf("\n");
+    n = n->next;
+  }
+
+
 }
 
 void print_gantt_ids() {
@@ -144,7 +186,7 @@ void print_gantt_ids() {
   if (n == NULL) {
     MSG("gantt empty\n");
   }
-  while (n->next != NULL) {
+  while (n != NULL) {
     MSG("%s\n", n->id);
     n = n->next;
   }
@@ -315,7 +357,7 @@ static void append_task(Task *task) {
 
   }
   MSG("new task %d\n", new_task->priority);
-  addGanttNode(new_task->id);
+  addGanttNode(new_task);
 
 }
 
@@ -579,7 +621,7 @@ static void long_term_schedule() {
 
   t = tasks;
   while (t) {
-    if (t->arrive_time == time) {   // schedule the task which 
+    if (t->arrive_time <= time) {   // schedule the task which 
       target = t;                   // arrive-time is equal to current time
       tasks = t->next;
       t = t->next;
@@ -593,11 +635,12 @@ static void long_term_schedule() {
 
 static void process() {
   if (cpu->task != NULL) {
-
+    record_to_gantt(cpu->task->id);
     cpu->task->remaining_time--;
     if (cpu->task->remaining_time == 0) {
       // TODO:record done task
       MSG ("task %s is done\n", cpu->task->id);
+      cpu->task->complete_time = time+1;
       cpu->task = NULL;
     }
     cpu->timeout--;
@@ -738,6 +781,39 @@ static void timeout_check() {
   return;
 }
 
+static double get_average_turn_around_time() {
+  int size = 0;
+
+  
+  int total_turn_around_time = 0;
+
+  Node *n = gantt_list.head;
+  if (n == NULL) return 0.0;
+
+  for (Node *n = gantt_list.head; n != NULL; n = n->next) {
+    n->turn_around_time = n->task->complete_time - n->task->arrive_time;
+    total_turn_around_time += n->turn_around_time;
+    size++;
+    MSG("tat %s, %d\n", n->id, n->turn_around_time);
+  }
+
+  return ((double) total_turn_around_time) / size; 
+}
+
+static double get_average_waiting_time() {
+  int size;
+
+  int total_waiting_time = 0;;
+
+  for (Node *n = gantt_list.head; n != NULL; n = n->next) {
+    n->waiting_time = n->turn_around_time - n->task->service_time;
+    total_waiting_time += n->waiting_time;
+    size++;
+  }
+
+  return (double) total_waiting_time / size;
+}
+
 int main(int argc, char **argv) {
 
   if (argc <= 1)
@@ -767,6 +843,8 @@ int main(int argc, char **argv) {
   cpu->task_type = L;
   cpu->task = NULL;
 
+
+  time = 1;
   running = true;
 
   // DEBUG
@@ -809,6 +887,11 @@ int main(int argc, char **argv) {
       running = false;
     }
   }
+  print_gantt();
+  MSG("%d\n", gantt_list.size);
+  printf("\nCPU TIME: %d\n", time);
+  printf("AVERAGE TURNAROUND TIME: %f\n", get_average_turn_around_time());
+  printf("AVERAGE WAITING TIME: %f\n", get_average_waiting_time());
 
   return 0;
 
