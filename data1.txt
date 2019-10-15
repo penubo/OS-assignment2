@@ -5,10 +5,8 @@
 # normal processes
 P1 H 0 8 3
 P2 L 1 4 2
-P3 M 1 9 4
-P4 H 1 5 1
-P5 H 4 5 10
-P6 H 4 5 10
+P3 M 2 9 4
+P4 H 3 5 1
 
 # invalid process id
 p L 4 6 9

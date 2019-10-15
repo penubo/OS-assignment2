@@ -13,6 +13,11 @@
 #define TIME_LEN 2
 #define PRIORITY_LEN 2
 
+#define MAX_SERVICE_TIME 30
+#define MAX_PRIORITY 10
+#define MAX_ARRIVE_TIME 30
+#define MAX_PROCESS_ID 26*2*10
+
 #define H_CPU_TIME_SLICE 6
 #define M_CPU_TIME_SLICE 4
 
@@ -22,6 +27,8 @@
 typedef struct _Task Task;
 typedef struct _Queue Queue;
 typedef struct _CPU CPU;
+typedef struct _GanttNode Node;
+typedef struct _GanttList GanttList;
 typedef enum _Type Type;
 
 static int check_valid_id(const char *);
@@ -40,6 +47,10 @@ static void init_queue(Queue *);
 
 static void long_term_schedule();
 static void process();
+static void short_term_schedule();
+static void priority_interrupt_check();
+static void priority_interrupt();
+static void timeout_check();
 
 
 /* global variables */
@@ -48,6 +59,7 @@ static int time;              // track current time.
 static int H_time;            // track remaining time can be used for H tasks (time slicing)
 static int M_time;            // track remaining time can be used for M tasks (time slicing)
 static CPU *cpu;
+static bool running;
 
 /* queues */
 /* 
@@ -92,10 +104,52 @@ struct _Queue {
 struct _CPU {               // cpu structure
 
   Task *task;               // task currently running
-  int H_time;               // time quantum for H_task
-  int M_time;               // time quantum for M_task
+  Type task_type;
+  int timeout;
 };
 
+struct _GanttNode {
+
+  Node *next;
+
+  char id[ID_LEN+1];
+  bool record[MAX_PROCESS_ID*MAX_SERVICE_TIME+MAX_SERVICE_TIME];
+  Task *task;
+};
+
+struct _GanttList {
+
+  Node *head;
+  
+};
+
+static GanttList gantt_list;
+
+void addGanttNode(char *id) {
+  Node *new_node = (Node *) malloc(sizeof(Node));
+  strcpy(new_node->id, id);
+
+  Node *n = gantt_list.head;
+
+  if (n == NULL) {
+    gantt_list.head = new_node;
+    return;
+  }
+  while (n->next != NULL) n = n->next;
+  n->next = new_node;
+}
+
+void print_gantt_ids() {
+  Node *n = gantt_list.head;
+  if (n == NULL) {
+    MSG("gantt empty\n");
+  }
+  while (n->next != NULL) {
+    MSG("%s\n", n->id);
+    n = n->next;
+  }
+
+}
 
 // DEBUG
 static void print_tasks() {
@@ -261,6 +315,7 @@ static void append_task(Task *task) {
 
   }
   MSG("new task %d\n", new_task->priority);
+  addGanttNode(new_task->id);
 
 }
 
@@ -541,24 +596,146 @@ static void process() {
 
     cpu->task->remaining_time--;
     if (cpu->task->remaining_time == 0) {
-      cpu->task->complete_time = time;     // record complete time
+      // TODO:record done task
+      MSG ("task %s is done\n", cpu->task->id);
       cpu->task = NULL;
     }
-    
-    if (cpu->H_time > 0) {
-      cpu->H_time--;
-      if (cpu->H_time == 0 && cpu->task != NULL) {
-        enqueue_task(cpu->task);
-        M_time = M_CPU_TIME_SLICE;
-      }
-    } else if (cpu->M_time > 0) {
-      cpu->M_time--;
-      if (cpu->M_time == 0 && cpu->task != NULL) {
-        enqueue_task(cpu->task);
-        H_time = H_CPU_TIME_SLICE;
-      }
+    cpu->timeout--;
+  }
+}
+
+static void short_term_schedule() {
+  // TODO: consider time quantum is H or M
+
+  if (cpu->task != NULL) return;
+  
+  Task *t;
+
+  if (cpu->task_type == H) { // it's time for H task
+    if (!is_empty(H_queue)) {
+      t = dequeue_task(H_queue);
+      cpu->task = t;
+    } else if (!is_empty(M_queue)) {
+      t = dequeue_task(M_queue);
+      cpu->task = t;
+      cpu->task_type = M;
+      cpu->timeout = M_CPU_TIME_SLICE;
+    } else if (!is_empty(L_queue)) {
+      t = dequeue_task(L_queue);
+      cpu->task = t;
+      cpu->task_type = L;
+      cpu->timeout = -1;
+    }
+
+  } else if (cpu->task_type == M) { // it's time for M task 
+    if (!is_empty(M_queue)) {
+      t = dequeue_task(M_queue);
+      cpu->task = t;
+    } else if (!is_empty(H_queue)) {
+      t = dequeue_task(H_queue);
+      cpu->task = t;
+      cpu->task_type = H;
+      cpu->timeout = H_CPU_TIME_SLICE;
+    } else if (!is_empty(L_queue)) {
+      t = dequeue_task(L_queue);
+      cpu->task = t;
+      cpu->task_type = L;
+      cpu->timeout = -1;
+    }
+
+  } else { // if L was running before or no task was run yet
+    if (!is_empty(H_queue)) {
+      t = dequeue_task(H_queue);
+      cpu->task = t;
+      cpu->task_type = H;
+      cpu->timeout = H_CPU_TIME_SLICE;
+    } else if (!is_empty(M_queue)) {
+      t = dequeue_task(M_queue);
+      cpu->task = t;
+      cpu->task_type = M;
+      cpu->timeout = M_CPU_TIME_SLICE;
+    } else if (!is_empty(L_queue)) {
+      t = dequeue_task(L_queue);
+      cpu->task = t;
+      cpu->task_type = L;
+      cpu->timeout = -1;
+    } else {
+
     }
   }
+
+
+}
+
+static void priority_interrupt_check() {
+
+  if (cpu->task == NULL) return;
+
+  // if M is running then no preemption occur
+  if (cpu->task_type == H) 
+  {
+    if (!is_empty(H_queue)) {
+      if (H_queue->head->priority < cpu->task->priority) {
+        Task *preempted_task = cpu->task;
+        Task *new_task = dequeue_task(H_queue);
+        cpu->task = new_task;
+        enqueue_task(preempted_task);
+      }
+    }
+  } 
+  else if (cpu->task_type == L) 
+  {
+    if (!is_empty(H_queue)) {
+      Task *preempted_task = cpu->task;
+      Task *new_task = dequeue_task(H_queue);
+      cpu->task = new_task;
+      // update time quantum to H
+      cpu->timeout = H_CPU_TIME_SLICE;
+      cpu->task_type = H;
+      // preempted L task must handle first later
+      preempted_task->next = L_queue->head->next;
+      L_queue->head = preempted_task;
+    } else if (!is_empty(M_queue)) {
+      Task *preempted_task = cpu->task;
+      Task *new_task = dequeue_task(M_queue);
+      cpu->task = new_task;
+      // update time quantum to M
+      cpu->timeout = M_CPU_TIME_SLICE;
+      cpu->task_type = M;
+      // preempted L task must handle first later
+      preempted_task->next = L_queue->head->next;
+      L_queue->head = preempted_task;
+    }
+  }
+}
+
+static void priority_interrupt() {
+
+
+}
+
+static void timeout_check() {
+  if (cpu->task == NULL) return;
+
+  if (cpu->task_type == H && cpu->timeout == 0) {
+
+    cpu->task_type = M;
+    cpu->timeout = M_CPU_TIME_SLICE;
+    // remove task
+    Task *preempted_task = cpu->task;
+    enqueue_task(preempted_task);
+    cpu->task = NULL;
+  } else if (cpu->task_type == M && cpu->timeout == 0) {
+
+    cpu->task_type = H;
+    cpu->timeout = H_CPU_TIME_SLICE;
+    // remove task
+    Task *preempted_task = cpu->task;
+    enqueue_task(preempted_task);
+    cpu->task = NULL;
+  }
+
+  return;
 }
 
 int main(int argc, char **argv) {
@@ -574,6 +751,7 @@ int main(int argc, char **argv) {
     MSG ("failed to load input file '%s': %s\n", argv[1], STRERROR);
     return -1; 
   }
+  print_gantt_ids();
 
   /* initialize all queues */
   H_queue = (Queue *) malloc(sizeof(Queue));
@@ -585,100 +763,51 @@ int main(int argc, char **argv) {
 
   /* initialize CPU */
   cpu = (CPU *) malloc(sizeof(CPU));
+  cpu->timeout = -1;
+  cpu->task_type = L;
+  cpu->task = NULL;
+
+  running = true;
 
   // DEBUG
   // TODO: what is stopping case??
-  while (tasks) {
+  while (running) {
 
     printf("\n==========time %d===========\n", time);
 
-    // long-term scheduling
+    /* long-term scheduling */
     long_term_schedule();
-
-
-    if (cpu->task != NULL) {
-      if (cpu->H_time == 0 && cpu->M_time == 0) {
-
-      } else if (cpu->H_time > 0 && !is_empty(H_queue)) {
-
-
-      } else if (cpu->H_time > 0 && !is_empty(M_queue)) {
-
-      } 
-
-    } else {
-
-    }
-
-    // if CPU is empty
-    //   if H_time == 0 && M_time == 0
-    //     if H_queue is not empty
-    //       CPU.H_time = 6;
-    //       add H_queue.head to CPU
-    //     else if M_queue is not empty
-    //       CPU.M_time = 4;
-    //       add M_queue.head to CPU
-    //     else if L_queue is not empty
-    //       add L_queue.head to CPU
-    //   else if it's H_time && H_queue is not empty
-    //     add H_task to CPU
-    //   else if it's H_time && M_queue is not empty (H_queue is empty)
-    //     CPU.H_time = 0;
-    //     CPU.M_time = 4;
-    //     add M_task to CPU and reset M_time = 4
-    //   else if M_time && M_queue is not empty
-    //     add M_task to CPU
-    //   else if it's M_time && H_queue is not empty (M_queue is empty)
-    //     CPU.M_time = 0;
-    //     CPU.H_time = 6;
-    //     add H_task to CPU and reset H_time = 6
-    //   else if H_queue and M_queue is empty
-    //     CPU.H_time = 0;
-    //     CPU.M_time = 0;
-    //     add L_queue.head to CPU
-    // 
-    // else if CPU is not empty
-    //   if H_task is running
-    //     if H_queue.head is more higher than H_task
-    //        add H_queue.head to CPU and preempt H_task
-    //   else if M_task is running
-    //   else if L_task is running
-    //     if H_queue is not empty
-    //        add H_queue.head to CPU and preempt L_task
-    //     else if M_queue is not empty
-    //        add M_queue.head to CPU and preempt L_task
-    //
-
-    // checking things
-    // if task which has higher priority come into H_queue and H_task is running
-    //   assign new H_task to CPU and preempt H_task  
-
-    // if no task is running.
-    //   check H -> M -> L and assign to CPU.
-    // else if H_task was running and it used up H_time
-    //   if M_queue is not empty
-    //     assign M_task to CPU and preempt H_task to H_queue
-    //   else 
-    //     reset H_time and keep run H_task
-    // else if M_task was running and it used up M_time
-    //   if H_queue is not empty
-    //     assign H_task to CPU and preempt M_task to M_queue
-    //   else 
-    //     reset M_time and keep run M_task
-
-
-    // process a task in CPU
-    process();
-    // if task is completed
-    //   delete task in CPU
-
     print_queue(H_queue);
     print_queue(M_queue);
     print_queue(L_queue);
 
-    // increase time
+    /* short_term_scheduling */
+    if (cpu->task == NULL) {
+      short_term_schedule();
+    } else {
+      // handle interrupt here
+      priority_interrupt_check();
+    }
 
+    /* process a task in CPU */
+    if (cpu->task == NULL) {
+      MSG("cpu is empty\n");
+    } else {
+      MSG("cpu %s \n", cpu->task->id);
+    }
+
+    process();
+
+    /* time out check */
+    timeout_check();
+
+
+    /* increase time */
     time++;           // increase time
+
+    if (!tasks && is_empty(H_queue) && is_empty(M_queue) && is_empty(L_queue) && cpu->task == NULL) {
+      running = false;
+    }
   }
 
   return 0;
