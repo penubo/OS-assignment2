@@ -21,9 +21,9 @@
 #define H_CPU_TIME_SLICE 6
 #define M_CPU_TIME_SLICE 4
 
-#define DEBUG 1     // for debugging
+#define DEBUG 0     // for debugging
 
-/* declarations */
+/* type definitions */
 typedef struct _Task Task;
 typedef struct _Queue Queue;
 typedef struct _CPU CPU;
@@ -31,20 +31,22 @@ typedef struct _GanttNode Node;
 typedef struct _GanttList GanttList;
 typedef enum _Type Type;
 
+/* parser related function declarations */
 static int check_valid_id(const char *);
 static Task *lookup_task(const char *);
 static int check_valid_arrive_time(const char *);
 static int check_valid_service_time(const char *);
 static int check_valid_priority(const char *);
-
 static void append_task(Task *);
 
+/* queue related function declarations */
 static Queue *get_queue(Type);
 static int enqueue_task(Task *);
 static Task *dequeue_task(Queue *);
 static bool is_empty(Queue *);
 static void init_queue(Queue *);
 
+/* scheduling algorithm related function declarations */
 static void long_term_schedule();
 static void process();
 static void short_term_schedule();
@@ -52,83 +54,87 @@ static void priority_interrupt_check();
 static void priority_interrupt();
 static void timeout_check();
 
+/* gantt related function declarations */
+static void add_gantt_node(Task *);
+static void record_to_gantt(char *);
+static void print_gantt();
 
-/* global variables */
+
+/* global variables declarations */
 static Task *tasks;           // list of tasks from the txt file.
 static int time;              // track current time.
 static int H_time;            // track remaining time can be used for H tasks (time slicing)
 static int M_time;            // track remaining time can be used for M tasks (time slicing)
-static CPU *cpu;
-static bool running;
+static CPU *cpu;              // cpu
+static bool volatile running; // running flag
+static GanttList gantt_list;  // linked list of gantt node
 
-/* queues */
-/* 
- * H_queue    : it's priority queue. 
- * M_queue    : it's SJF queue.
- * L_queue    : it's FCFS queue.
- *
- */
+/* queue pointers */
 static Queue *H_queue;
 static Queue *M_queue;
 static Queue *L_queue;
 
 
+/** struct & enum definitions **/
 
-
+/* task Type */
 enum _Type {
 
   H, M, L
-
 };
 
+/* task structure */
 struct _Task {
 
   Task *next;                 // Pointer which point the next Task.
 
   Type type;                  // Type of the Task. H, M, L
-  char id[ID_LEN+1];    // Id of the Task.
-  int arrive_time;      // Arrive-time of the Task.
-  int service_time;     // Service-time of the Task. 
-  int priority;         // Priority of the Task.
-  int remaining_time;    // Remaining time to service this Task.
+  char id[ID_LEN+1];          // Id of the Task.
+  int arrive_time;            // Arrive-time of the Task.
+  int service_time;           // Service-time of the Task. 
+  int priority;               // Priority of the Task.
+  int remaining_time;         // Remaining time to service this Task.
   int complete_time;          // Complete-time of the Task.
 };
 
+/* queue structure */
 struct _Queue {
 
-  Task *head;
-  Task *tail;
-  int size;
+  Task *head;                 // head or front pointer
+  Task *tail;                 // tail or rear pointer
 };
 
-struct _CPU {               // cpu structure
+/* cpu structure */
+struct _CPU {             
 
   Task *task;               // task currently running
-  Type task_type;
-  int timeout;
+  Type task_type;           // task type for recording which task was running
+  int timeout;              // timeout value for H and M
 };
 
+/* gantt node */
 struct _GanttNode {
 
-  Node *next;
-  Task *task;
+  Node *next;               // pointer which points the next gantt node
+  Task *task;               // each gantt node keep one task
 
-  char id[ID_LEN+1];
-  bool record[MAX_PROCESS_ID*MAX_SERVICE_TIME+MAX_SERVICE_TIME];
-  int turn_around_time;
-  int waiting_time;
+  char id[ID_LEN+1];        // id of task
+  bool record[MAX_PROCESS_ID*MAX_SERVICE_TIME+MAX_SERVICE_TIME]; // record of execution of its task
+  int turn_around_time;     // complete time - arrive time
+  int waiting_time;         // turnaround time - arrive time
 };
 
+/* gantt list */
 struct _GanttList {
 
-  Node *head;
-  int size;
+  Node *head;               // head of a list
   
 };
 
-static GanttList gantt_list;
 
-void addGanttNode(Task *task) {
+/** function definitions **/
+
+static void add_gantt_node(Task *task) {
   Node *new_node = (Node *) malloc(sizeof(Node));
   strcpy(new_node->id, task->id);
   new_node->task = task;
@@ -141,11 +147,9 @@ void addGanttNode(Task *task) {
   }
   while (n->next != NULL) n = n->next;
   n->next = new_node;
-  
-  gantt_list.size++;
 }
 
-void record_to_gantt(char *id) {
+static void record_to_gantt(char *id) {
   if (gantt_list.head == NULL) return;
 
   Node *n = gantt_list.head;
@@ -159,7 +163,7 @@ void record_to_gantt(char *id) {
 
 }
 
-void print_gantt() {
+static void print_gantt() {
 
   if (gantt_list.head == NULL) return;
 
@@ -181,6 +185,7 @@ void print_gantt() {
 
 }
 
+// DEBUG
 void print_gantt_ids() {
   Node *n = gantt_list.head;
   if (n == NULL) {
@@ -190,7 +195,6 @@ void print_gantt_ids() {
     MSG("%s\n", n->id);
     n = n->next;
   }
-
 }
 
 // DEBUG
@@ -271,6 +275,7 @@ static int check_valid_arrive_time(const char *str) {
 
   return 0;
 }
+
 static int check_valid_service_time(const char *str) {
 
   size_t len;
@@ -291,6 +296,7 @@ static int check_valid_service_time(const char *str) {
 
   return 0;
 }
+
 static int check_valid_priority(const char *str) {
 
   size_t len;
@@ -311,8 +317,8 @@ static int check_valid_priority(const char *str) {
 
   return 0;
 }
-static char *
-strstrip (char *str)
+
+static char * strstrip (char *str)
 {
   char  *start;
   size_t len;
@@ -356,8 +362,10 @@ static void append_task(Task *task) {
     t->next = new_task;
 
   }
-  MSG("new task %d\n", new_task->priority);
-  addGanttNode(new_task);
+
+  if(DEBUG) MSG("new task %d\n", new_task->priority);
+
+  add_gantt_node(new_task);
 
 }
 
@@ -477,8 +485,6 @@ static int read_config(const char* filename) {
 
     task.priority = atoi(s);
   
-
-    //TODO: append whole information here
     if (DEBUG)
       MSG ("id:%s type:%d arrive-time:%d service-time:%d priority:%d\n",
           task.id, task.type, task.arrive_time, task.service_time, task.priority);
@@ -513,7 +519,6 @@ static Queue *get_queue(Type type) {
 
 static int enqueue_task(Task *new_task) {
 
-  //Task *t = q->head;
   Task *t;
 
   if (!new_task) {
@@ -524,13 +529,6 @@ static int enqueue_task(Task *new_task) {
   Type task_type = new_task->type;
   Queue *q = get_queue(task_type);
   t = q->head;
-
-  //Task *new_task; 
-
-  //TODO: do not need to alloc here. because I want to use this after alloc all tasks.
-  //new_task = (Task *) malloc(sizeof(Task));
-
-  //*new_task = *task;
 
   if (is_empty(q)) {
     q->head = q->tail = new_task;
@@ -576,7 +574,6 @@ static int enqueue_task(Task *new_task) {
     q->tail = new_task;
   }
 
-  q->size++;
 }
 
 static Task *dequeue_task(Queue *q) {
@@ -594,7 +591,6 @@ static Task *dequeue_task(Queue *q) {
   } else {
 
     q->head = q->head->next;
-    q->size--;
     t->next = NULL;
   }
 
@@ -605,8 +601,8 @@ static Task *dequeue_task(Queue *q) {
 static bool is_empty(Queue *q) {
   return (q->tail == NULL);
 }
+
 static void init_queue(Queue *q) {
-  q->size = 0;
   q->head = NULL;
   q->tail = NULL;
 }
@@ -638,9 +634,8 @@ static void process() {
     record_to_gantt(cpu->task->id);
     cpu->task->remaining_time--;
     if (cpu->task->remaining_time == 0) {
-      // TODO:record done task
-      MSG ("task %s is done\n", cpu->task->id);
-      cpu->task->complete_time = time+1;
+      if (DEBUG) MSG ("task %s is done\n", cpu->task->id);
+      cpu->task->complete_time = time + 1;
       cpu->task = NULL;
     }
     cpu->timeout--;
@@ -648,7 +643,6 @@ static void process() {
 }
 
 static void short_term_schedule() {
-  // TODO: consider time quantum is H or M
 
   if (cpu->task != NULL) return;
   
@@ -794,7 +788,7 @@ static double get_average_turn_around_time() {
     n->turn_around_time = n->task->complete_time - n->task->arrive_time;
     total_turn_around_time += n->turn_around_time;
     size++;
-    MSG("tat %s, %d\n", n->id, n->turn_around_time);
+    if (DEBUG) MSG("tat %s, %d\n", n->id, n->turn_around_time);
   }
 
   return ((double) total_turn_around_time) / size; 
@@ -827,7 +821,6 @@ int main(int argc, char **argv) {
     MSG ("failed to load input file '%s': %s\n", argv[1], STRERROR);
     return -1; 
   }
-  print_gantt_ids();
 
   /* initialize all queues */
   H_queue = (Queue *) malloc(sizeof(Queue));
@@ -844,20 +837,20 @@ int main(int argc, char **argv) {
   cpu->task = NULL;
 
 
-  time = 1;
+  /* init time and running flag */
+  time = 0;
   running = true;
 
-  // DEBUG
-  // TODO: what is stopping case??
   while (running) {
-
-    printf("\n==========time %d===========\n", time);
 
     /* long-term scheduling */
     long_term_schedule();
-    print_queue(H_queue);
-    print_queue(M_queue);
-    print_queue(L_queue);
+
+    if (DEBUG) {
+      print_queue(H_queue);
+      print_queue(M_queue);
+      print_queue(L_queue);
+    }
 
     /* short_term_scheduling */
     if (cpu->task == NULL) {
@@ -868,27 +861,30 @@ int main(int argc, char **argv) {
     }
 
     /* process a task in CPU */
-    if (cpu->task == NULL) {
-      MSG("cpu is empty\n");
-    } else {
-      MSG("cpu %s \n", cpu->task->id);
+    if (DEBUG) {
+      if (cpu->task == NULL) {
+        MSG("cpu is empty\n");
+      } else {
+        MSG("cpu %s \n", cpu->task->id);
+      }
     }
 
+    /* process a task */
     process();
 
     /* time out check */
     timeout_check();
 
-
     /* increase time */
-    time++;           // increase time
+    time++;           
 
+    /* check all tasks done */
     if (!tasks && is_empty(H_queue) && is_empty(M_queue) && is_empty(L_queue) && cpu->task == NULL) {
       running = false;
     }
   }
+
   print_gantt();
-  MSG("%d\n", gantt_list.size);
   printf("\nCPU TIME: %d\n", time);
   printf("AVERAGE TURNAROUND TIME: %f\n", get_average_turn_around_time());
   printf("AVERAGE WAITING TIME: %f\n", get_average_waiting_time());
