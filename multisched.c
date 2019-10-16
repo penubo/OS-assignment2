@@ -63,8 +63,6 @@ static void print_gantt();
 /* global variables declarations */
 static Task *tasks;           // list of tasks from the txt file.
 static int time;              // track current time.
-static int H_time;            // track remaining time can be used for H tasks (time slicing)
-static int M_time;            // track remaining time can be used for M tasks (time slicing)
 static CPU *cpu;              // cpu
 static bool volatile running; // running flag
 static GanttList gantt_list;  // linked list of gantt node
@@ -746,11 +744,6 @@ static void priority_interrupt_check() {
   }
 }
 
-static void priority_interrupt() {
-
-
-}
-
 static void timeout_check() {
   if (cpu->task == NULL) return;
 
@@ -776,9 +769,8 @@ static void timeout_check() {
 }
 
 static double get_average_turn_around_time() {
-  int size = 0;
 
-  
+  int size = 0;
   int total_turn_around_time = 0;
 
   Node *n = gantt_list.head;
@@ -795,9 +787,9 @@ static double get_average_turn_around_time() {
 }
 
 static double get_average_waiting_time() {
-  int size;
 
-  int total_waiting_time = 0;;
+  int size = 0;
+  int total_waiting_time = 0;
 
   for (Node *n = gantt_list.head; n != NULL; n = n->next) {
     n->waiting_time = n->turn_around_time - n->task->service_time;
@@ -884,10 +876,12 @@ int main(int argc, char **argv) {
     }
   }
 
+	/* print result */
+  printf("\n[Multilevel Queue Scheduling]\n");
   print_gantt();
   printf("\nCPU TIME: %d\n", time);
-  printf("AVERAGE TURNAROUND TIME: %f\n", get_average_turn_around_time());
-  printf("AVERAGE WAITING TIME: %f\n", get_average_waiting_time());
+  printf("AVERAGE TURNAROUND TIME: %.2f\n", get_average_turn_around_time());
+  printf("AVERAGE WAITING TIME: %.2f\n", get_average_waiting_time());
 
   return 0;
 
