@@ -285,7 +285,7 @@ static int check_valid_priority(const char *str) {
   return 0;
 }
 
-static char * strstrip (char *str) {
+static char *strstrip (char *str) {
 
   char  *start;
   size_t len;
