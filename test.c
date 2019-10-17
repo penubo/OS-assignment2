@@ -607,7 +607,7 @@ static void long_term_schedule() {
       target->next = NULL;
       enqueue_task(target);
     } else {
-      t = t->next;
+			t = t->next;
     }
   }
 }
@@ -789,9 +789,24 @@ static double get_average_turn_around_time() {
   for (Node *n = gantt_list.head; n != NULL; n = n->next) {
 		// turnaround time = complete time - arrive time
     n->turn_around_time = n->task->complete_time - n->task->arrive_time;
-    total_turn_around_time += n->turn_around_time;
+		int tat = 0;
+		switch (n->task->type){
+			case H:
+				tat = n->turn_around_time * 5;
+				break;
+			case M:
+				tat = n->turn_around_time * 3;
+				break;
+			case L:
+				tat = n->turn_around_time * 1;
+				break;
+			default:
+				break;
+
+		}
+    total_turn_around_time += tat;
     size++;
-    if (DEBUG) MSG("tat %s, %d\n", n->id, n->turn_around_time);
+    if (DEBUG) MSG("tat %s, %d\n", n->id, tat);
   }
 
   return ((double) total_turn_around_time) / size; 
@@ -806,8 +821,23 @@ static double get_average_waiting_time() {
   for (Node *n = gantt_list.head; n != NULL; n = n->next) {
 		// waiting time = turnaround time - arrive time
     n->waiting_time = n->turn_around_time - n->task->service_time;
-		if (DEBUG) MSG("%s waiting %d\n", n->id, n->waiting_time);
-    total_waiting_time += n->waiting_time;
+		int wait_t = 0;
+		switch (n->task->type){
+			case H:
+				wait_t = n->waiting_time * 5;
+				break;
+			case M:
+				wait_t = n->waiting_time * 3;
+				break;
+			case L:
+				wait_t = n->waiting_time * 1;
+				break;
+			default:
+				break;
+
+		}
+		total_waiting_time += wait_t;
+		if (DEBUG) MSG("%s waiting %d\n", n->id, wait_t);
     size++;
   }
 
@@ -852,8 +882,11 @@ int main(int argc, char **argv) {
     /* long-term scheduling */
     long_term_schedule();
 
+		if(DEBUG) MSG("hello\n");
+
     /* short_term_scheduling */
     if (cpu->task == NULL) {
+			if(DEBUG) MSG("short\n");
       short_term_schedule();
     } else {
       // handle interrupt here

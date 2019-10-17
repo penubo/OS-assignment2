@@ -520,10 +520,9 @@ static void enqueue_task(Task *new_task) {
 				new_task->next = NULL;
 				t->next = new_task;
 				q->tail = new_task;
-			} else {
-				new_task->next = t->next;
-				t->next = new_task;
 			}
+			new_task->next = t->next;
+			t->next = new_task;
     }
 
   } else if (task_type == M) {
@@ -540,10 +539,10 @@ static void enqueue_task(Task *new_task) {
 				new_task->next = NULL;
 				t->next = new_task;
 				q->tail = new_task;
-			} else {
-				new_task->next = t->next;
-				t->next = new_task;
 			}
+			new_task->next = t->next;
+			t->next = new_task;
+			MSG("%s added to M\n", new_task->id);
     }
 
   } else if (task_type == L) {
