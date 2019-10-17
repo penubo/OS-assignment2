@@ -4,9 +4,9 @@
 
 # normal processes
 P1 H 0 8 3
-P2 L 1 4 2
+P2 M 1 4 2
 P3 M 2 9 4
-P4 H 3 5 1
+# P4 H 3 5 1
 
 # invalid process id
 p L 4 6 9
@@ -14,7 +14,7 @@ _1 M 5 6 7
 12 M 5 6 7
 
 # duplicate process id
-P3 M 4 4 4
+# P3 M 4 4 4
 
 # invalid arrive time
 P5 H -1 4 4

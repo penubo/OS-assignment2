@@ -309,7 +309,7 @@ static void append_task(Task *task) {
 
   Task *new_task;
 
-  new_task = (Task *) calloc(1, sizeof(Task));
+  new_task = (Task *) malloc(sizeof(Task));
 
   if (!new_task) {
     MSG ("failed to allocate a task: %s\n", STRERROR);
@@ -516,6 +516,11 @@ static void enqueue_task(Task *new_task) {
       while (t->next != NULL 
           && new_task->priority >= t->next->priority) t = t->next;
 
+			if (t->next == NULL) {
+				new_task->next = NULL;
+				t->next = new_task;
+				q->tail = new_task;
+			}
 			new_task->next = t->next;
 			t->next = new_task;
     }
@@ -530,8 +535,14 @@ static void enqueue_task(Task *new_task) {
       while (t->next != NULL 
              && new_task->remaining_time >= t->next->remaining_time) t = t->next;
 
-				new_task->next = t->next;
+			if (t->next == NULL) {
+				new_task->next = NULL;
 				t->next = new_task;
+				q->tail = new_task;
+			}
+			new_task->next = t->next;
+			t->next = new_task;
+			MSG("%s added to M\n", new_task->id);
     }
 
   } else if (task_type == L) {
@@ -558,10 +569,10 @@ static Task *dequeue_task(Queue *q) {
     q->head = NULL;
     q->tail = NULL;
   } else {
-
     q->head = q->head->next;
     t->next = NULL;
   }
+
 
   return t;
 
@@ -708,8 +719,12 @@ static void priority_interrupt_check() {
       cpu->timeout = H_TIME_QUANTUM;
       cpu->task_type = H;
       // preempted L task must handle first later
-      preempted_task->next = L_queue->head->next;
-      L_queue->head = preempted_task;
+			if (!is_empty(L_queue)) {
+				preempted_task->next = L_queue->head->next;
+				L_queue->head = preempted_task;
+			} else {
+				enqueue_task(preempted_task);
+			}
     } else if (!is_empty(M_queue)) {
       Task *preempted_task = cpu->task;
       Task *new_task = dequeue_task(M_queue);
@@ -718,8 +733,12 @@ static void priority_interrupt_check() {
       cpu->timeout = M_TIME_QUANTUM;
       cpu->task_type = M;
       // preempted L task must handle first later
-      preempted_task->next = L_queue->head->next;
-      L_queue->head = preempted_task;
+			if (!is_empty(L_queue)) {
+				preempted_task->next = L_queue->head->next;
+				L_queue->head = preempted_task;
+			} else {
+				enqueue_task(preempted_task);
+			}
     }
   }
 }
@@ -729,7 +748,6 @@ static void timeout_check() {
 
 	Task *preempted_task;
 
-  if (cpu->task == NULL) return;
 
 	// switcing H to M task
   if (cpu->task_type == H && cpu->timeout == 0) {
@@ -737,9 +755,11 @@ static void timeout_check() {
     cpu->task_type = M;
     cpu->timeout = M_TIME_QUANTUM;
     // remove task
-    preempted_task = cpu->task;
-    enqueue_task(preempted_task);
-    cpu->task = NULL;
+		if (cpu->task != NULL) {
+			preempted_task = cpu->task;
+			enqueue_task(preempted_task);
+			cpu->task = NULL;
+		}
 
 	// switching M to H
   } else if (cpu->task_type == M && cpu->timeout == 0) {
@@ -747,9 +767,11 @@ static void timeout_check() {
     cpu->task_type = H;
     cpu->timeout = H_TIME_QUANTUM;
     // remove task
-    preempted_task = cpu->task;
-    enqueue_task(preempted_task);
-    cpu->task = NULL;
+		if (cpu->task != NULL) {
+			preempted_task = cpu->task;
+			enqueue_task(preempted_task);
+			cpu->task = NULL;
+		}
   }
 
   return;
@@ -783,6 +805,7 @@ static double get_average_waiting_time() {
   for (Node *n = gantt_list.head; n != NULL; n = n->next) {
 		// waiting time = turnaround time - arrive time
     n->waiting_time = n->turn_around_time - n->task->service_time;
+		if (DEBUG) MSG("%s waiting %d\n", n->id, n->waiting_time);
     total_waiting_time += n->waiting_time;
     size++;
   }
@@ -842,8 +865,16 @@ int main(int argc, char **argv) {
         MSG("cpu is empty\n");
       } else {
         MSG("cpu %s \n", cpu->task->id);
+				MSG("%d\n", is_empty(M_queue));
       }
     }
+
+		if (DEBUG) {
+			if (!is_empty(M_queue))
+				MSG("%s\n", M_queue->head->id);
+			Task* dt = M_queue->head;
+			MSG("\n");
+		}
 
     /* process a task */
     process();
